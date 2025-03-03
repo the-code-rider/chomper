@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Face-Eating Game with Fun Background & Centered Modal</title>
+    <!-- A-Frame Library (includes Three.js) -->
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <!-- A-Frame Environment Component for a fun background -->
+    <script
+        src="https://unpkg.com/aframe-environment-component@1.5.x/dist/aframe-environment-component.min.js"></script>
+    <!-- A-Frame Particle System Component -->
+    <script
+        src="https://cdn.jsdelivr.net/gh/c-frame/aframe-particle-system-component@latest/dist/aframe-particle-system-component.min.js"></script>
+    <!-- Mediapipe FaceMesh & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <style>
+        body,
+        html {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        /* Top left: Tracking Info Overlay */
+        #trackingInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            padding: 10px;
+            font-family: sans-serif;
+            z-index: 1000;
+            border-radius: 10px;
+        }
+
+        /* Top right: Game Info Overlay */
+        #gameInfo {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            padding: 10px;
+            font-family: sans-serif;
+            z-index: 1000;
+            border-radius: 10px;
+        }
+
+        /* Face cursor (yellow circle) */
+        #cursor {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: yellow;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Centered HTML Modal for Game Over */
+        #gameOverModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            color: #fff;
+            text-align: center;
+            z-index: 2000;
+            border-radius: 10px;
+        }
+
+        #gameOverModal h2 {
+            margin-top: 0;
+        }
+
+        #restartBtn {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Tracking Info (Top Left) -->
+    <div id="trackingInfo">Tracking Info: Waiting...</div>
+    <!-- Game Info (Top Right) -->
+    <div id="gameInfo">Score: 0 | Health: Alive</div>
+    <!-- Face Cursor -->
+    <div id="cursor"></div>
+    <!-- Game Over Modal (HTML overlay in the center) -->
+    <div id="gameOverModal">
+        <h2>Game Over</h2>
+        <p id="finalScoreText"></p>
+        <button id="restartBtn">Restart</button>
+    </div>
+
+
+
+
+    <!-- A-Frame Scene -->
+    <a-scene id="scene" background="color: #000" renderer="alpha: true">
+        <a-entity position="0 2.25 -15" particle-system="preset: dust" ; particleCount: 5000></a-entity>
+        <!-- <a-entity position="0 2.25 -15" particle-system="color: #EF0000,#44CC00"></a-entity> -->
+
+        <!-- Fun Environment Background -->
+        <a-entity environment="preset: threetowers;
+       ground: flat;
+        groundColor: #a25757;
+       skyType: atmosphere;
+       shadow: true;
+        dressing: trees; 
+        dressingColor:#c281d9;
+         fog: 0.2">
+        </a-entity>
+        <!-- Main Camera -->
+        <a-entity id="cameraEntity" camera position="0 1.6 0"></a-entity>
+        <a-assets>
+            <a-asset-item id="cake" src="assets/handpainted_watercolor_cake.glb"></a-asset-item>
+        </a-assets>
+    </a-scene>
+
+    <!-- Hidden Video Element for Mediapipe -->
+    <video id="input_video" style="display: none;"></video>
+
+    <script>
+        /*******************************
+         * Global Game & Tracking State *
+         *******************************/
+        let mouthOpen = false;
+        let score = 0;
+        let gameOver = false;
+        let spawnInterval;
+        // Cursor screen coordinates (updated from face tracking).
+        let cursorScreenX = 0, cursorScreenY = 0;
+
+        const gameInfoDiv = document.getElementById('gameInfo');
+        const trackingInfoDiv = document.getElementById('trackingInfo');
+        const cursorEl = document.getElementById('cursor');
+        const sceneEl = document.getElementById('scene');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const finalScoreText = document.getElementById('finalScoreText');
+        const restartBtn = document.getElementById('restartBtn');
+
+        /*********************
+         * Utility Functions *
+         *********************/
+        // 2D Euclidean distance.
+        function distance2D(x1, y1, x2, y2) {
+            const dx = x2 - x1, dy = y2 - y1;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Determine if the mouth is open using landmarks 13 (upper lip) and 14 (lower lip).
+        function isMouthOpen(landmarks) {
+            const upperLip = landmarks[13];
+            const lowerLip = landmarks[14];
+            const dx = lowerLip.x - upperLip.x;
+            const dy = lowerLip.y - upperLip.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            return d > 0.03; // Adjust threshold as needed.
+        }
+
+        // Get face center using the nose tip (landmark 1).
+        function getFaceCenter(landmarks) {
+            return { x: landmarks[1].x, y: landmarks[1].y };
+        }
+
+        /*******************************
+         * Mediapipe FaceMesh Setup    *
+         *******************************/
+        const videoElement = document.getElementById('input_video');
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        faceMesh.onResults(results => {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+                mouthOpen = isMouthOpen(landmarks);
+                const faceCenter = getFaceCenter(landmarks);
+                // Since the video is mirrored, reverse the x coordinate.
+                cursorScreenX = (1 - faceCenter.x) * window.innerWidth;
+                cursorScreenY = faceCenter.y * window.innerHeight;
+                // Update the face cursor element.
+                cursorEl.style.left = cursorScreenX + 'px';
+                cursorEl.style.top = cursorScreenY + 'px';
+                // Update tracking info overlay.
+                trackingInfoDiv.innerHTML = `
+            Mouth open: ${mouthOpen} <br>
+            Face center: (${faceCenter.x.toFixed(3)}, ${faceCenter.y.toFixed(3)})
+          `;
+            }
+        });
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => { await faceMesh.send({ image: videoElement }); },
+            width: 640,
+            height: 480
+        });
+        cameraUtils.start();
+
+        /******************************************
+         * A-Frame Component: Move & Collision    *
+         ******************************************/
+        AFRAME.registerComponent('move-toward-camera', {
+            schema: { speed: { type: 'number', default: 0.05 } },
+            tick: function (time, timeDelta) {
+                if (gameOver) return;
+                const el = this.el;
+                // Move the shape along the z-axis toward the camera.
+                el.object3D.position.z += this.data.speed * (timeDelta / 16.67);
+
+                // Get the Three.js camera.
+                const cameraObj = sceneEl.camera;
+                if (!cameraObj) return;
+
+                // Get shape's world position and project it into screen space.
+                const pos = el.object3D.getWorldPosition(new THREE.Vector3());
+                const projected = pos.clone().project(cameraObj);
+                const shapeScreenX = (projected.x + 1) / 2 * window.innerWidth;
+                const shapeScreenY = (1 - projected.y) / 2 * window.innerHeight;
+
+                // Check collision: if shape is near the face cursor and the mouth is open.
+                const d = distance2D(shapeScreenX, shapeScreenY, cursorScreenX, cursorScreenY);
+                if (d < 30 && mouthOpen) {
+
+                    // Process collision.
+                    const color = el.getAttribute('material').color;
+                    if (color === 'green') {
+                        score++;
+                    } else if (color === 'red') {
+                        endGame();
+                    }
+                    if (el.parentNode) {
+                        el.parentNode.removeChild(el);
+                    }
+                }
+
+                // Remove the shape if it passes beyond the camera.
+                if (el.object3D.position.z > 2) {
+                    if (el.parentNode) {
+                        el.parentNode.removeChild(el);
+                    }
+                }
+            }
+        });
+
+
+
+        /***********************
+         * Shape Spawner Logic *
+         ***********************/
+        function spawnShape() {
+            if (gameOver) return;
+            const shapeEl = document.createElement('a-entity');
+            // Randomly choose shape type: sphere or box.
+            const shapeType = Math.random() < 0.5 ? 'sphere' : 'box';
+            // Decide if the shape is edible (green) or poison (red) – 70% chance edible.
+            const edible = Math.random() < 0.7;
+            const color = edible ? 'green' : 'red';
+            if (shapeType === 'sphere') {
+                shapeEl.setAttribute('geometry', { primitive: 'sphere', radius: 0.5 });
+            } else {
+                shapeEl.setAttribute('geometry', { primitive: 'box', height: 1, width: 1, depth: 1 });
+            }
+            shapeEl.setAttribute('material', { color: color });
+            // Randomize spawn position: x between -3 and 3, y between 1 and 3, z fixed at -20.
+            const posX = (Math.random() * 6) - 3;
+            const posY = 1 + Math.random() * 2;
+            shapeEl.setAttribute('position', { x: posX, y: posY, z: -20 });
+            // Assign a random speed.
+            const speed = 0.03 + Math.random() * 0.04;
+            shapeEl.setAttribute('move-toward-camera', { speed: speed });
+            sceneEl.appendChild(shapeEl);
+        }
+
+        function spawnCake() {
+            if (gameOver) return;
+            const shapeEl = document.createElement('a-entity');
+
+            // pick a random shape -> get the shape id
+            // Use the custom glTF model.
+            
+            shapeEl.setAttribute('gltf-model', '#cake');
+            // Optional: Adjust scale and rotation if needed.
+            shapeEl.setAttribute('scale', '0.5 0.5 0.5');
+
+            // Decide if the model is edible (green) or poison (red) – for game logic.
+            // You might store this as a custom attribute or data property.
+            const edible = Math.random() < 0.7;
+            shapeEl.setAttribute('data-edible', edible ? 'true' : 'false');
+
+            // Randomize spawn position: x between -3 and 3, y between 1 and 3, z fixed at -20.
+            const posX = (Math.random() * 6) - 3;
+            const posY = 1 + Math.random() * 2;
+            shapeEl.setAttribute('position', { x: posX, y: posY, z: -20 });
+
+            // Assign a random speed.
+            const speed = 0.03 + Math.random() * 0.04;
+            shapeEl.setAttribute('move-toward-camera', { speed: speed });
+
+            sceneEl.appendChild(shapeEl);
+        }
+
+
+        /**********************
+         * Game Control Logic *
+         **********************/
+        function startGame() {
+            score = 0;
+            gameOver = false;
+            gameOverModal.style.display = "none";
+            if (spawnInterval) clearInterval(spawnInterval);
+            // spawnInterval = setInterval(spawnShape, 2000);
+            spawnInterval = setInterval(spawnCake, 2000);
+        }
+
+        function endGame() {
+            gameOver = true;
+            clearInterval(spawnInterval);
+            // Show game over modal in the center.
+            finalScoreText.innerText = `Final Score: ${score}`;
+            gameOverModal.style.display = "block";
+        }
+
+        // Restart button listener.
+        restartBtn.addEventListener('click', () => {
+            // Remove any remaining shapes.
+            const shapes = sceneEl.querySelectorAll('[move-toward-camera]');
+            shapes.forEach(el => { if (el.parentNode) el.parentNode.removeChild(el); });
+            startGame();
+        });
+
+        /**********************
+         * Game Info Update   *
+         **********************/
+        function updateGameInfo() {
+            if (!gameOver) {
+                gameInfoDiv.innerHTML = `Score: ${score} | Health: Alive`;
+            }
+        }
+        setInterval(updateGameInfo, 100);
+
+        // Start the game.
+        startGame();
+    </script>
+</body>
+
+</html>
