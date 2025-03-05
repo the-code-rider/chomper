@@ -89,10 +89,48 @@
             font-size: 16px;
             border-radius: 5px;
         }
+
+        /* Centered Start Modal */
+        #startModal {
+            display: block;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            color: #fff;
+            text-align: center;
+            z-index: 2000;
+            border-radius: 10px;
+        }
+
+        #startModal h2 {
+            margin-top: 0;
+        }
+
+        #playBtn {
+            padding: 10px 20px;
+            background: #2196F3;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 
 <body>
+
+    <!-- Start Modal (shown when the game is loaded) -->
+    <div id="startModal">
+        <h2>Chomper</h2>
+        <p>Requires camera, align your face with food, and open your mouth to eat it, avoid poison. Happy chomping.</p>
+        <button id="playBtn">Play</button>
+    </div>
+
+
     <!-- Tracking Info (Top Left) -->
     <div id="trackingInfo">Tracking Info: Waiting...</div>
     <!-- Game Info (Top Right) -->
@@ -101,17 +139,31 @@
     <div id="cursor"></div>
     <!-- Game Over Modal (HTML overlay in the center) -->
     <div id="gameOverModal">
-        <h2>Game Over</h2>
+        <h2>Game Over. You Drank Poison 💀</h2>
         <p id="finalScoreText"></p>
         <button id="restartBtn">Restart</button>
     </div>
 
-
-
-
     <!-- A-Frame Scene -->
     <a-scene id="scene" background="color: #000" renderer="alpha: true">
-        <a-entity position="0 2.25 -15" particle-system="preset: dust" ; particleCount: 5000></a-entity>
+        <a-assets>
+            <a-asset-item id="cake" src="assets/cake.glb"></a-asset-item>
+            <a-asset-item id="pancake" src="assets/pancake.glb"></a-asset-item>
+            <a-asset-item id="lasagna" src="assets/lasagna.glb"></a-asset-item>
+            <a-asset-item id="cupcake" src="assets/cupcake.glb"></a-asset-item>
+
+            <a-asset-item id="poison1" src="assets/poison1.glb"></a-asset-item>
+            <a-asset-item id="poison1" src="assets/poison2.glb"></a-asset-item>
+            <a-asset-item id="bearModel" src="assets/cute_bear.glb"></a-asset-item>
+
+            <audio id="bg-music-sound" src="assets/sound/background.mp3"></audio>
+            <audio id="chomp" src="assets/sound/chomp.mp3"></audio>
+            <audio id="crunch" src="assets/sound/crunch.mp3"></audio>
+            <audio id="cracker" src="assets/sound/cracker.mp3"></audio>
+            <audio id="gulp" src="assets/sound/gulp.mp3"></audio>
+        </a-assets>
+
+        <a-entity position="0 2.25 -15" particle-system="preset: dust" ; particleCount: 50000></a-entity>
         <!-- <a-entity position="0 2.25 -15" particle-system="color: #EF0000,#44CC00"></a-entity> -->
 
         <!-- Fun Environment Background -->
@@ -126,9 +178,18 @@
         </a-entity>
         <!-- Main Camera -->
         <a-entity id="cameraEntity" camera position="0 1.6 0"></a-entity>
-        <a-assets>
-            <a-asset-item id="cake" src="assets/handpainted_watercolor_cake.glb"></a-asset-item>
-        </a-assets>
+          <!-- The bear is positioned at the bottom left relative to the camera -->
+
+        <!-- Background Music Entity (autoplay, loop) -->
+
+        <a-entity id="bg-music" sound="src: #bg-music-sound; autoplay: true; loop: true; volume: 0.2"></a-entity>
+        <!-- Collision Sound Entity (triggered on collision) -->
+        <a-entity id="chomp-sound" sound="src: #chomp; volume: 1"></a-entity>
+        <a-entity id="crunch-sound" sound="src: #crunch; volume: 1"></a-entity>
+        <a-entity id="cracker-sound" sound="src: #cracker; volume: 1"></a-entity>
+        <a-entity id="gulp-sound" sound="src: #gulp; volume: 1"></a-entity>
+
+
     </a-scene>
 
     <!-- Hidden Video Element for Mediapipe -->
@@ -145,6 +206,26 @@
         // Cursor screen coordinates (updated from face tracking).
         let cursorScreenX = 0, cursorScreenY = 0;
 
+        const foodSoundMap = {
+            "cake": "chomp-sound",
+            "pancake": "chomp-sound",
+            "lasagna": "cracker-sound",
+            "cupcake": "chomp-sound",
+            "poison1": "gulp-sound",
+            "poison2": "gulp-sound"
+        };
+
+        const foodEdibleMap = {
+            "cake": true,
+            "pancake": true,
+            "lasagna": true,
+            "cupcake": true,
+            "poison1": false,
+            "poison2": false
+        }
+
+        const foodList = ["cake", "pancake", "lasagna", "cupcake", "poison1", "poison2"];
+
         const gameInfoDiv = document.getElementById('gameInfo');
         const trackingInfoDiv = document.getElementById('trackingInfo');
         const cursorEl = document.getElementById('cursor');
@@ -152,6 +233,8 @@
         const gameOverModal = document.getElementById('gameOverModal');
         const finalScoreText = document.getElementById('finalScoreText');
         const restartBtn = document.getElementById('restartBtn');
+        const playBtn = document.getElementById('playBtn');
+
 
         /*********************
          * Utility Functions *
@@ -213,7 +296,7 @@
             width: 640,
             height: 480
         });
-        cameraUtils.start();
+       
 
         /******************************************
          * A-Frame Component: Move & Collision    *
@@ -238,13 +321,21 @@
 
                 // Check collision: if shape is near the face cursor and the mouth is open.
                 const d = distance2D(shapeScreenX, shapeScreenY, cursorScreenX, cursorScreenY);
-                if (d < 30 && mouthOpen) {
+
+                if (d < 50 && mouthOpen) {
+
+                    // Trigger collision sound effect.
+                    const foodEaten = el.getAttribute('food-id');
+                    const collisionSoundEntity = document.querySelector('#' + foodSoundMap[foodEaten]);
+                    collisionSoundEntity.components.sound.playSound();
+
 
                     // Process collision.
-                    const color = el.getAttribute('material').color;
-                    if (color === 'green') {
+                    const edible = el.getAttribute('data-edible');
+                    console.log(edible);
+                    if (edible === "yes") {
                         score++;
-                    } else if (color === 'red') {
+                    } else {
                         endGame();
                     }
                     if (el.parentNode) {
@@ -296,15 +387,26 @@
 
             // pick a random shape -> get the shape id
             // Use the custom glTF model.
-            
-            shapeEl.setAttribute('gltf-model', '#cake');
+
+            const foodItem = foodList[Math.floor(Math.random() * foodList.length)];
+
+
+            shapeEl.setAttribute('gltf-model', '#' + foodItem);
+            shapeEl.setAttribute('food-id', foodItem);
             // Optional: Adjust scale and rotation if needed.
-            shapeEl.setAttribute('scale', '0.5 0.5 0.5');
+
+            if (foodItem == 'poison1' || foodItem == 'poison2') {
+                shapeEl.setAttribute('scale', '0.05 0.05 0.05');
+            } else {
+                shapeEl.setAttribute('scale', '0.5 0.5 0.5');
+            }
+
+
 
             // Decide if the model is edible (green) or poison (red) – for game logic.
             // You might store this as a custom attribute or data property.
-            const edible = Math.random() < 0.7;
-            shapeEl.setAttribute('data-edible', edible ? 'true' : 'false');
+            const edible = foodEdibleMap[foodItem];
+            shapeEl.setAttribute('data-edible', edible ? "yes" : "no");
 
             // Randomize spawn position: x between -3 and 3, y between 1 and 3, z fixed at -20.
             const posX = (Math.random() * 6) - 3;
@@ -326,14 +428,15 @@
             score = 0;
             gameOver = false;
             gameOverModal.style.display = "none";
+            cameraUtils.start();
             if (spawnInterval) clearInterval(spawnInterval);
-            // spawnInterval = setInterval(spawnShape, 2000);
-            spawnInterval = setInterval(spawnCake, 2000);
+            spawnInterval = setInterval(spawnCake, 1000);
         }
 
         function endGame() {
             gameOver = true;
             clearInterval(spawnInterval);
+            cameraUtils.stop();
             // Show game over modal in the center.
             finalScoreText.innerText = `Final Score: ${score}`;
             gameOverModal.style.display = "block";
@@ -357,8 +460,11 @@
         }
         setInterval(updateGameInfo, 100);
 
-        // Start the game.
-        startGame();
+        // Start the game only when Play is clicked.
+        playBtn.addEventListener('click', () => {
+            startModal.style.display = "none";
+            startGame();
+        });
     </script>
 </body>
 
