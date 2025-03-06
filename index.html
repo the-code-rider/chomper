@@ -434,7 +434,7 @@
                 // Check collision: if shape is near the face cursor and the mouth is open.
                 const d = distance2D(shapeScreenX, shapeScreenY, cursorScreenX, cursorScreenY);
 
-                if (d < 20 && mouthOpen) {
+                if (d < 30 && mouthOpen) {
 
                     // Trigger collision sound effect.
                     const foodEaten = el.getAttribute('food-id');
