@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Face-Eating Game with Fun Background & Centered Modal</title>
+    <title>Chomper</title>
     <!-- A-Frame Library (includes Three.js) -->
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
     <!-- A-Frame Environment Component for a fun background -->
@@ -118,6 +118,62 @@
             font-size: 16px;
             border-radius: 5px;
         }
+
+         /* Credits button: placed below the score card */
+      #creditsBtn {
+        position: absolute;
+        top: 70px;
+        right: 10px;
+        z-index: 1000;
+        padding: 5px 10px;
+        font-size: 14px;
+        background: #555;
+        color: #fff;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+
+        /* Credits Overlay & Modal */
+        #creditsOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2900;
+        }
+
+        #creditsModal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        #creditsModal h3 {
+            margin-top: 0;
+        }
+
+        #creditsCloseBtn {
+            padding: 5px 10px;
+            background: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 3px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 
@@ -135,6 +191,9 @@
     <div id="trackingInfo">Tracking Info: Waiting...</div>
     <!-- Game Info (Top Right) -->
     <div id="gameInfo">Score: 0 | Health: Alive</div>
+
+    <button id="creditsBtn">Credits</button>
+
     <!-- Face Cursor -->
     <div id="cursor"></div>
     <!-- Game Over Modal (HTML overlay in the center) -->
@@ -142,6 +201,55 @@
         <h2>Game Over. You Drank Poison 💀</h2>
         <p id="finalScoreText"></p>
         <button id="restartBtn">Restart</button>
+    </div>
+
+    <div id="creditsOverlay">
+        <div id="creditsModal">
+            <h3>Credits</h3>
+            <p>
+                "Handpainted watercolor cake" (<a href="https://skfb.ly/oH9yt"
+                    target="_blank">https://skfb.ly/oH9yt</a>) by Anna Espenstein is licensed under <a
+                    href="http://creativecommons.org/licenses/by/4.0/" target="_blank">Creative Commons Attribution</a>.
+            </p>
+            <p>
+                "��Mouthwatering banana pancakes in syrup��" (<a href="https://skfb.ly/oW9Gy"
+                    target="_blank">https://skfb.ly/oW9Gy</a>) by nottodayrender is licensed under <a
+                    href="http://creativecommons.org/licenses/by/4.0/" target="_blank">Creative Commons Attribution</a>.
+            </p>
+            <p>
+                "Potion bottle (poison)" (<a href="https://skfb.ly/onYxP" target="_blank">https://skfb.ly/onYxP</a>) by
+                Ret.ouchs is licensed under <a href="http://creativecommons.org/licenses/by/4.0/"
+                    target="_blank">Creative Commons Attribution</a>.
+            </p>
+            <p>
+                "POISON GLASS BOTTLE" (<a href="https://skfb.ly/6WMQq" target="_blank">https://skfb.ly/6WMQq</a>) by
+                Studio Sazor is licensed under <a href="http://creativecommons.org/licenses/by/4.0/"
+                    target="_blank">Creative Commons Attribution</a>.
+            </p>
+            <p>
+                "Extra Chocolate Marshmallow Cupcake" (<a href="https://skfb.ly/onoCB"
+                    target="_blank">https://skfb.ly/onoCB</a>) by jtressle is licensed under <a
+                    href="http://creativecommons.org/licenses/by/4.0/" target="_blank">Creative Commons Attribution</a>.
+            </p>
+            <p>
+                "Lasagna" (<a href="https://skfb.ly/oXoRA" target="_blank">https://skfb.ly/oXoRA</a>) by UmangRank is
+                licensed under <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">Creative Commons
+                    Attribution</a>.
+            </p>
+            <p>
+                Nom Noise by TheDragonsSpark – <a href="https://freesound.org/s/543386/"
+                    target="_blank">https://freesound.org/s/543386/</a> – License: Attribution 4.0
+            </p>
+            <p>
+                Eating a cracker (Mouth open) by Rudmer_Rotteveel – <a href="https://freesound.org/s/364923/"
+                    target="_blank">https://freesound.org/s/364923/</a> – License: Creative Commons 0
+            </p>
+            <p>
+                crunch 4.wav by theplax – <a href="https://freesound.org/s/608639/"
+                    target="_blank">https://freesound.org/s/608639/</a> – License: Attribution 4.0
+            </p>
+            <button id="creditsCloseBtn">Close</button>
+        </div>
     </div>
 
     <!-- A-Frame Scene -->
@@ -178,7 +286,7 @@
         </a-entity>
         <!-- Main Camera -->
         <a-entity id="cameraEntity" camera position="0 1.6 0"></a-entity>
-          <!-- The bear is positioned at the bottom left relative to the camera -->
+        <!-- The bear is positioned at the bottom left relative to the camera -->
 
         <!-- Background Music Entity (autoplay, loop) -->
 
@@ -234,6 +342,9 @@
         const finalScoreText = document.getElementById('finalScoreText');
         const restartBtn = document.getElementById('restartBtn');
         const playBtn = document.getElementById('playBtn');
+        const creditsBtn = document.getElementById('creditsBtn');
+        const creditsOverlay = document.getElementById('creditsOverlay');
+        const creditsCloseBtn = document.getElementById('creditsCloseBtn');
 
 
         /*********************
@@ -296,7 +407,7 @@
             width: 640,
             height: 480
         });
-       
+
 
         /******************************************
          * A-Frame Component: Move & Collision    *
@@ -464,6 +575,26 @@
         playBtn.addEventListener('click', () => {
             startModal.style.display = "none";
             startGame();
+        });
+
+        /**********************
+     * Credits Modal Logic*
+     **********************/
+        // When Credits button is clicked, show the credits overlay.
+        creditsBtn.addEventListener('click', () => {
+            creditsOverlay.style.display = "block";
+        });
+
+        // Close button inside the credits modal.
+        creditsCloseBtn.addEventListener('click', () => {
+            creditsOverlay.style.display = "none";
+        });
+
+        // Clicking anywhere outside the credits modal closes it.
+        creditsOverlay.addEventListener('click', (e) => {
+            if (e.target === creditsOverlay) {
+                creditsOverlay.style.display = "none";
+            }
         });
     </script>
 </body>
