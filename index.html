@@ -255,20 +255,21 @@
     <!-- A-Frame Scene -->
     <a-scene id="scene" background="color: #000" renderer="alpha: true">
         <a-assets>
-            <a-asset-item id="cake" src="assets/cake.glb"></a-asset-item>
-            <a-asset-item id="pancake" src="assets/pancake.glb"></a-asset-item>
-            <a-asset-item id="lasagna" src="assets/lasagna.glb"></a-asset-item>
-            <a-asset-item id="cupcake" src="assets/cupcake.glb"></a-asset-item>
+            
+            <a-asset-item id="cake" src="https://g-assets.luckysingh.net/chomper-assets/cake.glb"></a-asset-item>
+            <a-asset-item id="pancake" src="https://g-assets.luckysingh.net/chomper-assets/pancake.glb"></a-asset-item>
+            <a-asset-item id="lasagna" src="https://g-assets.luckysingh.net/chomper-assets/lasagna.glb"></a-asset-item>
+            <a-asset-item id="cupcake" src="https://g-assets.luckysingh.net/chomper-assets/cupcake.glb"></a-asset-item>
 
-            <a-asset-item id="poison1" src="assets/poison1.glb"></a-asset-item>
-            <a-asset-item id="poison1" src="assets/poison2.glb"></a-asset-item>
-            <a-asset-item id="bearModel" src="assets/cute_bear.glb"></a-asset-item>
+            <a-asset-item id="poison1" src="https://g-assets.luckysingh.net/chomper-assets/poison1.glb"></a-asset-item>
+            <a-asset-item id="poison1" src="https://g-assets.luckysingh.net/chomper-assets/poison2.glb"></a-asset-item>
+        
 
-            <audio id="bg-music-sound" src="assets/sound/background.mp3"></audio>
-            <audio id="chomp" src="assets/sound/chomp.mp3"></audio>
-            <audio id="crunch" src="assets/sound/crunch.mp3"></audio>
-            <audio id="cracker" src="assets/sound/cracker.mp3"></audio>
-            <audio id="gulp" src="assets/sound/gulp.mp3"></audio>
+            <audio id="bg-music-sound" src="https://g-assets.luckysingh.net/chomper-assets/background.mp3"></audio>
+            <audio id="chomp" src="https://g-assets.luckysingh.net/chomper-assets/chomp.mp3"></audio>
+            <audio id="crunch" src="https://g-assets.luckysingh.net/chomper-assets/crunch.mp3"></audio>
+            <audio id="cracker" src="https://g-assets.luckysingh.net/chomper-assets/cracker.mp3"></audio>
+            <audio id="gulp" src="https://g-assets.luckysingh.net/chomper-assets/gulp.mp3"></audio>
         </a-assets>
 
         <a-entity position="0 2.25 -15" particle-system="preset: dust" ; particleCount: 50000></a-entity>
@@ -433,7 +434,7 @@
                 // Check collision: if shape is near the face cursor and the mouth is open.
                 const d = distance2D(shapeScreenX, shapeScreenY, cursorScreenX, cursorScreenY);
 
-                if (d < 50 && mouthOpen) {
+                if (d < 20 && mouthOpen) {
 
                     // Trigger collision sound effect.
                     const foodEaten = el.getAttribute('food-id');
@@ -443,7 +444,6 @@
 
                     // Process collision.
                     const edible = el.getAttribute('data-edible');
-                    console.log(edible);
                     if (edible === "yes") {
                         score++;
                     } else {
