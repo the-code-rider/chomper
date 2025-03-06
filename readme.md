@@ -2,6 +2,9 @@
 
 **Chomper** is a fun, web-based augmented reality (AR) game that uses your webcam and face tracking to let you “chomp” edible objects while avoiding poisonous ones. The game utilizes Mediapipe FaceMesh for real-time face tracking and A-Frame for 3D rendering and AR environment. 
 
+## Gameplay Demo
+https://youtu.be/kDvfcw6W_4Y 
+
 ## Features
 
 - **Real-Time Face Tracking:**  
